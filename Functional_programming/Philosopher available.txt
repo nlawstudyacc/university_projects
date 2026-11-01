@@ -1,0 +1,87 @@
+#normal
+def available() do
+    receive do
+      {:request, from} ->
+        send(from, :granted)
+        gone()
+      :quit -> :ok
+    end
+  end
+
+def waitingPhilosopher(hunger, right, left, name, ctrl) do
+    IO.puts("Philosopher #{name} is waiting for chopsticks")
+    case Chopstick.request(left, @timeout) do
+      :ok ->
+        IO.puts("Philosopher #{name} received the left chopstick")
+        case Chopstick.request(right,  @timeout) do
+          :ok ->
+            IO.puts("Philosopher #{name} received both chopsticks")
+            eatingPhilosopher(hunger, right, left, name, ctrl)
+          :no ->
+            send(left, :return)
+            IO.puts("Philosopher #{name} is tired of waiting for right chopstick")
+            dreamingPhilosopher(hunger, right, left, name, ctrl)
+        end
+      :no ->
+        IO.puts("Philosopher #{name} is tired of waiting for left chopstick")
+        dreamingPhilosopher(hunger, right, left, name, ctrl)
+    end
+  end
+
+#asynchronous
+def request(rightStick, leftStick, timeout) do
+    send(rightStick, {:request, self()})
+    send(leftStick, {:request, self()})
+    granted(rightStick, leftStick, timeout)
+  end
+
+  def granted(rightStick, leftStick, timeout) do
+    receive do
+      {:granted, ^rightStick} ->
+        receive do
+          {:granted, _} -> :ok
+        after
+          #Returns which stick got obtained
+          timeout -> {:no, rightStick}
+        end
+      {:granted, ^leftStick} ->
+        receive do
+          {:granted, _} -> :ok
+        after
+          #Returns which stick got obtained
+          timeout -> {:no, leftStick}
+        end
+    after
+      #Since no sticks got obtained it returns nil
+      timeout -> {:no, nil}
+    end
+  end
+
+def available() do
+    receive do
+      {:request, from} ->
+        send(from, {:granted, self()})
+        gone()
+      :quit -> :ok
+    end
+  end
+
+def waitingPhilosopher(hunger, right, left, name, ctrl) do
+    IO.puts("Philosopher #{name} is waiting for chopsticks")
+    case Chopstick.request(right, left, @timeout) do
+      :ok ->
+        IO.puts("Philosopher #{name} received both chopsticks")
+        eatingPhilosopher(hunger, right, left, name, ctrl)
+      {:no, ^right} ->
+        IO.puts("Philosopher #{name} got the right chopstick but got tired of waiting for the left one")
+        send(right, :retrun)
+        dreamingPhilosopher(hunger, right, left, name, ctrl)
+      {:no, ^left} ->
+        IO.puts("Philosopher #{name} got the left chopstick but got tired of waiting for the right one")
+        send(left, :retrun)
+        dreamingPhilosopher(hunger, right, left, name, ctrl)
+      {:no, nil} ->
+        IO.puts("Philosopher #{name} didn't get any chopsticks and got tired")
+        dreamingPhilosopher(hunger, right, left, name, ctrl)
+    end
+  end
